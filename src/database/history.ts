@@ -6,14 +6,18 @@ import type { DatabaseSchema, DatabaseSchemaHistory } from "@/types/database";
 import { join } from "@/utils/path";
 import { getDatabase } from ".";
 
-type QueryBuilder = SelectQueryBuilder<DatabaseSchema, "history", AnyObject>;
+export type HistoryQueryBuilder = SelectQueryBuilder<
+  DatabaseSchema,
+  "history",
+  AnyObject
+>;
 
 export const selectHistory = async (
-  fn?: (qb: QueryBuilder) => QueryBuilder,
+  fn?: (qb: HistoryQueryBuilder) => HistoryQueryBuilder,
 ) => {
   const db = await getDatabase();
 
-  let qb = db.selectFrom("history").selectAll() as QueryBuilder;
+  let qb = db.selectFrom("history").selectAll() as HistoryQueryBuilder;
 
   if (fn) {
     qb = fn(qb);

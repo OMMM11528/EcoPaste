@@ -1,12 +1,13 @@
 import { useUpdateEffect } from "ahooks";
 import { FloatButton, Modal } from "antd";
 import clsx from "clsx";
-import { findIndex } from "es-toolkit/compat";
-import { useContext, useEffect, useRef } from "react";
+import { useContext, useRef } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import Scrollbar from "@/components/Scrollbar";
 import { LISTEN_KEY } from "@/constants";
+import { useActiveHistory } from "@/hooks/useActiveHistory";
 import { useHistoryList } from "@/hooks/useHistoryList";
+import { useHistoryScroll } from "@/hooks/useHistoryScroll";
 import { useKeyboard } from "@/hooks/useKeyboard";
 import { useTauriListen } from "@/hooks/useTauriListen";
 import { MainContext } from "../..";
@@ -20,16 +21,15 @@ const HistoryList = () => {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
-  const scrollToIndex = (index: number) => {
-    return virtuosoRef.current?.scrollIntoView({ index });
-  };
+  const { scrollToIndex } = useHistoryScroll(virtuosoRef);
+  const { ensureSelected, selectFirst } = useActiveHistory();
 
   const scrollToTop = () => {
     if (rootState.list.length === 0) return;
 
     scrollToIndex(0);
 
-    rootState.activeId = rootState.list[0].id;
+    selectFirst();
   };
 
   useKeyboard({ scrollToTop });
@@ -38,27 +38,7 @@ const HistoryList = () => {
 
   useTauriListen(LISTEN_KEY.ACTIVATE_BACK_TOP, scrollToTop);
 
-  useUpdateEffect(() => {
-    const { list } = rootState;
-
-    if (list.length === 0) {
-      rootState.activeId = void 0;
-    } else {
-      rootState.activeId ??= list[0].id;
-    }
-  }, [rootState.list.length]);
-
-  useEffect(() => {
-    const { list, activeId } = rootState;
-
-    if (!activeId) return;
-
-    const index = findIndex(list, { id: activeId });
-
-    if (index < 0) return;
-
-    scrollToIndex(index);
-  }, [rootState.activeId]);
+  useUpdateEffect(ensureSelected, [rootState.list.length]);
 
   return (
     <>

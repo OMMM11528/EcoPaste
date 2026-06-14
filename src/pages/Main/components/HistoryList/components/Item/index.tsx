@@ -8,6 +8,7 @@ import { useSnapshot } from "valtio";
 import SafeHtml from "@/components/SafeHtml";
 import UnoIcon from "@/components/UnoIcon";
 import { LISTEN_KEY } from "@/constants";
+import { useActiveHistory } from "@/hooks/useActiveHistory";
 import { useContextMenu } from "@/hooks/useContextMenu";
 import { MainContext } from "@/pages/Main";
 import { pasteToClipboard } from "@/plugins/clipboard";
@@ -31,6 +32,7 @@ const Item: FC<ItemProps> = (props) => {
   const { id, type, note, value } = data;
   const { rootState } = useContext(MainContext);
   const { content } = useSnapshot(clipboardStore);
+  const { selectNext, selectPrev } = useActiveHistory();
 
   const handlePreview = () => {
     if (type !== "image") return;
@@ -38,19 +40,9 @@ const Item: FC<ItemProps> = (props) => {
     openPath(value);
   };
 
-  const handleNext = () => {
-    const { list } = rootState;
+  const handleNext = () => selectNext(index);
 
-    const nextItem = list[index + 1] ?? list[index - 1];
-
-    rootState.activeId = nextItem?.id;
-  };
-
-  const handlePrev = () => {
-    if (index === 0) return;
-
-    rootState.activeId = rootState.list[index - 1].id;
-  };
+  const handlePrev = () => selectPrev(index);
 
   rootState.eventBus?.useSubscription((payload) => {
     if (payload.id !== id) return;
