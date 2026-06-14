@@ -1,4 +1,3 @@
-import { useUpdateEffect } from "ahooks";
 import { FloatButton, Modal } from "antd";
 import clsx from "clsx";
 import { findIndex } from "es-toolkit/compat";
@@ -6,6 +5,7 @@ import { useContext, useEffect, useRef } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import Scrollbar from "@/components/Scrollbar";
 import { LISTEN_KEY } from "@/constants";
+import { useActiveIdSync } from "@/hooks/useActiveIdSync";
 import { useHistoryList } from "@/hooks/useHistoryList";
 import { useKeyboard } from "@/hooks/useKeyboard";
 import { useTauriListen } from "@/hooks/useTauriListen";
@@ -38,16 +38,10 @@ const HistoryList = () => {
 
   useTauriListen(LISTEN_KEY.ACTIVATE_BACK_TOP, scrollToTop);
 
-  useUpdateEffect(() => {
-    const { list } = rootState;
+  // Keep the active selection in sync when items are added/removed.
+  useActiveIdSync();
 
-    if (list.length === 0) {
-      rootState.activeId = void 0;
-    } else {
-      rootState.activeId ??= list[0].id;
-    }
-  }, [rootState.list.length]);
-
+  // Scroll the virtualized list to the active item whenever it changes.
   useEffect(() => {
     const { list, activeId } = rootState;
 

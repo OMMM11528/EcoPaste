@@ -1,91 +1,62 @@
-import { copyFile, exists, remove } from "@tauri-apps/plugin-fs";
 import { useAsyncEffect, useReactive } from "ahooks";
-import { isString } from "es-toolkit";
 import { unionBy } from "es-toolkit/compat";
 import { useContext } from "react";
-import { getDefaultSaveImagePath } from "tauri-plugin-clipboard-x-api";
 import { LISTEN_KEY } from "@/constants";
 import { selectHistory } from "@/database/history";
+import { applyHistoryFilters } from "@/database/historyQuery";
+import { normalizeHistoryItems } from "@/database/normalize";
 import { MainContext } from "@/pages/Main";
-import { isBlank } from "@/utils/is";
-import { getSaveImagePath, join } from "@/utils/path";
 import { useTauriListen } from "./useTauriListen";
 
-interface Options {
+const PAGE_SIZE = 20;
+
+interface UseHistoryListOptions {
+  /**
+   * Scroll the list so the first item is visible and mark it active.
+   * Called after a page-1 reload when results are available.
+   */
   scrollToTop: () => void;
 }
 
-export const useHistoryList = (options: Options) => {
+export const useHistoryList = (options: UseHistoryListOptions) => {
   const { scrollToTop } = options;
   const { rootState } = useContext(MainContext);
+
   const state = useReactive({
     loading: false,
     noMore: false,
     page: 1,
-    size: 20,
+    size: PAGE_SIZE,
   });
 
   const fetchData = async () => {
+    if (state.loading) return;
+
+    state.loading = true;
+
     try {
-      if (state.loading) return;
-
-      state.loading = true;
-
-      const { page } = state;
+      const { page, size } = state;
+      const { group, search } = rootState;
 
       const list = await selectHistory((qb) => {
-        const { size } = state;
-        const { group, search } = rootState;
-        const isFavoriteGroup = group === "favorite";
-        const isNormalGroup = group !== "all" && !isFavoriteGroup;
-
-        return qb
-          .$if(isFavoriteGroup, (eb) => eb.where("favorite", "=", true))
-          .$if(isNormalGroup, (eb) => eb.where("group", "=", group))
-          .$if(!isBlank(search), (eb) => {
-            return eb.where((eb) => {
-              return eb.or([
-                eb("search", "like", eb.val(`%${search}%`)),
-                eb("note", "like", eb.val(`%${search}%`)),
-              ]);
-            });
-          })
+        return applyHistoryFilters(qb, { group, search })
           .offset((page - 1) * size)
           .limit(size)
           .orderBy("createTime", "desc");
       });
 
-      for (const item of list) {
-        const { type, value } = item;
-
-        if (!isString(value)) continue;
-
-        if (type === "image") {
-          const oldPath = join(getSaveImagePath(), value);
-          const newPath = join(await getDefaultSaveImagePath(), value);
-
-          if (await exists(oldPath)) {
-            await copyFile(oldPath, newPath);
-
-            remove(oldPath);
-          }
-
-          item.value = newPath;
-        }
-
-        if (type === "files") {
-          item.value = JSON.parse(value);
-        }
-      }
+      await normalizeHistoryItems(list);
 
       state.noMore = list.length === 0;
 
       if (page === 1) {
         rootState.list = list;
 
-        if (state.noMore) return;
+        if (!state.noMore) {
+          scrollToTop();
+        }
 
-        return scrollToTop();
+        return;
       }
 
       rootState.list = unionBy(rootState.list, list, "id");
@@ -109,13 +80,15 @@ export const useHistoryList = (options: Options) => {
     fetchData();
   };
 
-  useTauriListen(LISTEN_KEY.REFRESH_CLIPBOARD_LIST, reload);
-
+  // Reload whenever the active group or search term changes, and
+  // select the first item so keyboard navigation has a starting point.
   useAsyncEffect(async () => {
     await reload();
 
     rootState.activeId = rootState.list[0]?.id;
   }, [rootState.group, rootState.search]);
+
+  useTauriListen(LISTEN_KEY.REFRESH_CLIPBOARD_LIST, reload);
 
   return {
     loadMore,

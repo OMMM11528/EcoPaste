@@ -1,4 +1,3 @@
-import { openPath } from "@tauri-apps/plugin-opener";
 import { Flex } from "antd";
 import type { HookAPI } from "antd/es/modal/useModal";
 import clsx from "clsx";
@@ -7,8 +6,6 @@ import { Marker } from "react-mark.js";
 import { useSnapshot } from "valtio";
 import SafeHtml from "@/components/SafeHtml";
 import UnoIcon from "@/components/UnoIcon";
-import { LISTEN_KEY } from "@/constants";
-import { useContextMenu } from "@/hooks/useContextMenu";
 import { MainContext } from "@/pages/Main";
 import { pasteToClipboard } from "@/plugins/clipboard";
 import { clipboardStore } from "@/stores/clipboard";
@@ -18,6 +15,7 @@ import Header from "../Header";
 import Image from "../Image";
 import Rtf from "../Rtf";
 import Text from "../Text";
+import { useItemActions } from "./useItemActions";
 
 export interface ItemProps {
   index: number;
@@ -27,61 +25,18 @@ export interface ItemProps {
 }
 
 const Item: FC<ItemProps> = (props) => {
-  const { index, data, handleNote } = props;
-  const { id, type, note, value } = data;
+  const { data } = props;
+  const { id, type, note } = data;
   const { rootState } = useContext(MainContext);
   const { content } = useSnapshot(clipboardStore);
 
-  const handlePreview = () => {
-    if (type !== "image") return;
+  const { handleContextMenu, handleDelete, handleFavorite } =
+    useItemActions(props);
 
-    openPath(value);
-  };
-
-  const handleNext = () => {
-    const { list } = rootState;
-
-    const nextItem = list[index + 1] ?? list[index - 1];
-
-    rootState.activeId = nextItem?.id;
-  };
-
-  const handlePrev = () => {
-    if (index === 0) return;
-
-    rootState.activeId = rootState.list[index - 1].id;
-  };
-
-  rootState.eventBus?.useSubscription((payload) => {
-    if (payload.id !== id) return;
-
-    const { handleDelete, handleFavorite } = rest;
-
-    switch (payload.action) {
-      case LISTEN_KEY.CLIPBOARD_ITEM_PREVIEW:
-        return handlePreview();
-      case LISTEN_KEY.CLIPBOARD_ITEM_PASTE:
-        return pasteToClipboard(data);
-      case LISTEN_KEY.CLIPBOARD_ITEM_DELETE:
-        return handleDelete();
-      case LISTEN_KEY.CLIPBOARD_ITEM_SELECT_PREV:
-        return handlePrev();
-      case LISTEN_KEY.CLIPBOARD_ITEM_SELECT_NEXT:
-        return handleNext();
-      case LISTEN_KEY.CLIPBOARD_ITEM_FAVORITE:
-        return handleFavorite();
-    }
-  });
-
-  const { handleContextMenu, ...rest } = useContextMenu({
-    ...props,
-    handleNext,
-  });
-
-  const handleClick = (type: typeof content.autoPaste) => {
+  const handleClick = (clickType: typeof content.autoPaste) => {
     rootState.activeId = id;
 
-    if (content.autoPaste !== type) return;
+    if (content.autoPaste !== clickType) return;
 
     pasteToClipboard(data);
   };
@@ -115,7 +70,12 @@ const Item: FC<ItemProps> = (props) => {
       onDoubleClick={() => handleClick("double")}
       vertical
     >
-      <Header {...rest} data={data} handleNote={handleNote} />
+      <Header
+        data={data}
+        handleDelete={handleDelete}
+        handleFavorite={handleFavorite}
+        handleNote={props.handleNote}
+      />
 
       <div className="relative flex-1 select-auto overflow-hidden break-words children:transition">
         <div
